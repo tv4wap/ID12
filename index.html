@@ -1,0 +1,242 @@
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <script disable-devtool-auto src='https://cdn.jsdelivr.net/npm/disable-devtool'></script>
+
+  <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css">
+<link rel="stylesheet" href="https://cdn.plyr.io/3.6.2/plyr.css" />
+<link href="https://cdn.jsdelivr.net/gh/halfmoonui/halfmoon@1.0.4/css/halfmoon.min.css" rel="stylesheet" />
+<script src="https://cdn.plyr.io/3.7.8/plyr.js"></script>
+    <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
+    <script src="https://cdn.dashjs.org/latest/dash.all.min.js"></script>   
+    <script src="https://cdn.jsdelivr.net/npm/dashjs@4.5.0/dist/dash.all.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@1.1.4/dist/hls.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/plyr@3.6.12/dist/plyr.min.js"></script>
+<script src="http://dashif.org/reference/players/javascript/nightly/dash.js/dist/dash.all.debug.js"></script>
+ <script src="https://cdn.jsdelivr.net/npm/hls.js@1.1.5/dist/hls.min.js"></script>
+    <script src="https://cdn.dashjs.org/latest/dash.all.min.js"></script>
+    <script src="https://content.jwplatform.com/libraries/SAHhwvZq.js"></script> 
+
+<script type="text/javascript" charset="utf-8" async="" src="https://ssl.p.jwpcdn.com/player/v/8.30.1/jwpsrv.js"></script>
+
+<script src="https://cdn.dashjs.org/latest/dash.all.min.js"></script>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #000;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        #player-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .plyr {
+            position: absolute !important;
+            width: 100%;
+            max-width: 177.78vh; /* 16:9 aspect ratio based on height */
+            height: 100vh;
+            max-height: 56.25vw; /* 16:9 aspect ratio based on width */
+            margin: auto;
+        }
+
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 18px;
+            z-index: 10;
+        }
+
+        .error {
+            color: #ff4444;
+        }
+
+
+body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden;
+        }
+        .plyr {
+            height: 100%;
+            width: 100%;
+            border-radius: 0;
+        }
+    </style>
+</head>
+<body>
+    <div id="player-container">
+        <video id="player" playsinline></video>
+        <div id="loading"></div>
+    </div>
+
+    <script src="https://cdn.plyr.io/3.7.8/plyr.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dashjs@4.5.0/dist/dash.all.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@1.1.5/dist/hls.min.js"></script>
+    
+    <script>
+        // Default fallback stream
+        const FALLBACK_STREAM = "https://example.com/lala.php";
+        let player;
+
+        async function initPlayer() {
+            const video = document.getElementById('player');
+            const loadingElement = document.getElementById('loading');
+
+            // Initialize Plyr player with 16:9 ratio
+            player = new Plyr(video, {
+                controls: ['play-large', 'play', 'progress', 'current-time', 'mute', 'volume', 'settings', 'fullscreen'],
+                ratio: '16:9',
+                autoplay: true
+            });
+
+            try {
+                // Check for stream ID parameter
+                const urlParams = new URLSearchParams(window.location.search);
+                const streamId = urlParams.get('id');
+
+                let streamUrl;
+                let isHLS = false;
+                let isDASH = false;
+                let drmConfig = null;
+
+                if (streamId) {
+                    // Fetch stream data
+                    const response = await fetch('https://raw.githubusercontent.com/Shubhamkur/Tv/refs/heads/main/tv');
+                    const streams = await response.json();
+                    const stream = streams.find(s => s.id === streamId);
+
+                    if (stream) {
+                        if (stream.m3u8) {
+                            streamUrl = stream.m3u8;
+                            isHLS = true;
+                        } else if (stream.mpd && stream.key) {
+                            streamUrl = stream.mpd;
+                            isDASH = true;
+                            const [keyId, keyValue] = stream.key.split(':');
+                            drmConfig = {
+                                serverURL: 'data:application/json;base64,' + btoa(JSON.stringify({
+                                    "keys": [{
+                                        "kty": "oct",
+                                        "kid": keyId.trim(),
+                                        "k": keyValue.trim()
+                                    }],
+                                    "type": "temporary"
+                                }))
+                            };
+                        }
+                    }
+                }
+
+                // If no valid stream found, use fallback
+                if (!streamUrl) {
+                    streamUrl = FALLBACK_STREAM;
+                    isHLS = true;
+                }
+
+                // Load the appropriate stream type
+                if (isHLS) {
+                    if (Hls.isSupported()) {
+                        const hls = new Hls();
+                        hls.loadSource(streamUrl);
+                        hls.attachMedia(video);
+                        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                            loadingElement.style.display = 'none';
+                        });
+                    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                        video.src = streamUrl;
+                        video.addEventListener('loadedmetadata', () => {
+                            loadingElement.style.display = 'none';
+                        });
+                    } else {
+                        throw new Error('HLS is not supported in this browser');
+                    }
+                } else if (isDASH) {
+                    const dashPlayer = dashjs.MediaPlayer().create();
+                    dashPlayer.initialize(video, null, true);
+                    
+                    if (drmConfig) {
+                        dashPlayer.setProtectionData({
+                            'org.w3.clearkey': {
+                                'serverURL': drmConfig.serverURL
+                            }
+                        });
+                    }
+                    
+                    dashPlayer.attachSource(streamUrl);
+                    dashPlayer.on(dashjs.MediaPlayer.events.STREAM_INITIALIZED, () => {
+                        loadingElement.style.display = 'none';
+                    });
+                }
+
+            } catch (error) {
+                console.error('Error:', error);
+                loadingElement.className = 'error';
+                loadingElement.textContent = 'Error loading stream';
+                
+                // Try to load fallback
+                try {
+                    if (Hls.isSupported()) {
+                        const hls = new Hls();
+                        hls.loadSource(FALLBACK_STREAM);
+                        hls.attachMedia(video);
+                        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                            loadingElement.style.display = 'none';
+                        });
+                    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                        video.src = FALLBACK_STREAM;
+                        loadingElement.style.display = 'none';
+                    }
+                } catch (fallbackError) {
+                    loadingElement.textContent = 'Failed to load any stream';
+                }
+            }
+        }
+
+        // Handle window resize to maintain aspect ratio
+        function handleResize() {
+            const container = document.getElementById('player-container');
+            const plyr = document.querySelector('.plyr');
+            if (window.innerHeight > window.innerWidth * 9/16) {
+                // Tall screen (mobile)
+                plyr.style.maxWidth = '100%';
+                plyr.style.maxHeight = '100%';
+            } else {
+                // Wide screen (desktop)
+                plyr.style.maxWidth = '177.78vh';
+                plyr.style.maxHeight = '100%';
+            }
+        }
+
+        window.addEventListener('resize', handleResize);
+        document.addEventListener('DOMContentLoaded', () => {
+            initPlayer();
+            handleResize();
+        });
+    </script>
+
+</body>
+</html>
+
+
